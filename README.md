@@ -21,7 +21,7 @@
 <h3 align="center">Talk to one agent. Mission with a crew.</h3>
 
 <p align="center">
-  <img alt="numberone - talk to one agent, mission with a crew" src="assets/banner.png" width="100%" />
+  <img alt="numberone - talk to one agent, mission with a crew" src="assets/banner_ng.png" width="100%" />
 </p>
 
 ## What it is
