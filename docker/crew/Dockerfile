@@ -1,6 +1,6 @@
-# firstmate-crew: minimal image to run a claude crewmate sandboxed.
+# numberone-crew: minimal image to run a claude ensign sandboxed.
 # Build (from repo root):
-#   docker build -t firstmate-crew:latest -f docker/crew/Dockerfile .
+#   docker build -t numberone-crew:latest -f docker/crew/Dockerfile .
 FROM node:22-bookworm-slim
 
 # git (worktree ops, commits, push) + gh (PRs) + curl/gnupg (gh apt repo).
@@ -16,8 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Claude Code CLI. Pin/replace to match how you install claude on the host.
 RUN npm install -g @anthropic-ai/claude-code
 
-# Optional: the no-mistakes validation pipeline + axi tools the crewmate may
-# invoke for ship tasks. Uncomment if you run no-mistakes-mode projects.
+# Optional: the no-mistakes validation pipeline + axi tools the ensign may
+# invoke for mission tasks. Uncomment if you run no-mistakes-mode projects.
 # RUN curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh
 # RUN npm install -g gh-axi chrome-devtools-axi lavish-axi
 

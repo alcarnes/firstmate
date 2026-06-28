@@ -1,0 +1,262 @@
+#!/usr/bin/env bash
+# Scaffold a ensign brief or persistent lieutenant charter at
+# data/<task-id>/brief.md under the active numberone home.
+# For ordinary tasks, the standard Setup/Rules/Definition-of-done contract is
+# filled in. Number One then replaces the {TASK} placeholder with the task
+# description, acceptance criteria, and context, and may adjust other sections
+# when the task genuinely deviates (e.g. working an existing external PR instead
+# of delivering a new one).
+# Usage: n1-brief.sh <task-id> <repo-name> [--survey]
+#        n1-brief.sh <task-id> --lieutenant <project>...
+#   --survey writes the survey contract instead: the deliverable is a report at
+#   data/<task-id>/report.md (no branch, no push, no PR) and the worktree is scratch.
+#   --lieutenant writes a persistent lieutenant charter. The project list
+#   is cloned into the lieutenant home, while the natural-language scope
+#   tells the main numberone when to route work there; routine churn stays in its own home;
+#   captain-relevant escalations and marked from-numberone replies append to this
+#   home's status file.
+#   Set N1_LIEUTENANT_CHARTER='<charter>' to fill the charter text.
+#   Set N1_LIEUTENANT_SCOPE='<scope>' to write a routing scope distinct from the charter text.
+# For mission tasks, the definition of done is shaped by the project's delivery mode
+# (data/projects.md via n1-project-mode.sh; see AGENTS.md project management
+# and task lifecycle):
+#   no-mistakes  implement -> /no-mistakes pipeline -> PR -> captain merge (default)
+#   direct-PR    implement -> push + open PR via gh-axi (no pipeline) -> captain merge
+#   local-only   implement on branch, stop and report "ready in branch" (no push/PR);
+#                numberone reviews, captain approves, numberone merges to local main
+# Mission briefs begin with a worktree-isolation assertion before the branch step.
+# Survey tasks ignore mode - their deliverable is a report, not a merge.
+# Mission tasks include a project-memory section so durable project-intrinsic
+# learnings can be committed to AGENTS.md through the project's delivery path.
+# Refuses to overwrite an existing brief.
+set -eu
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=bin/n1-marker-lib.sh
+. "$SCRIPT_DIR/n1-marker-lib.sh"
+N1_ROOT="${N1_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+N1_HOME="${N1_HOME:-${N1_ROOT_OVERRIDE:-$N1_ROOT}}"
+DATA="${N1_DATA_OVERRIDE:-$N1_HOME/data}"
+STATE="${N1_STATE_OVERRIDE:-$N1_HOME/state}"
+KIND=mission
+POS=()
+for a in "$@"; do
+  case "$a" in
+    --survey) KIND=survey ;;
+    --lieutenant) KIND=lieutenant ;;
+    *) POS+=("$a") ;;
+  esac
+done
+ID=${POS[0]}
+
+BRIEF="$DATA/$ID/brief.md"
+[ -e "$BRIEF" ] && { echo "error: $BRIEF already exists" >&2; exit 1; }
+mkdir -p "$DATA/$ID"
+
+shell_quote() {
+  printf "'"
+  printf '%s' "$1" | sed "s/'/'\\\\''/g"
+  printf "'"
+}
+
+STATUS_FILE=$(shell_quote "$STATE/$ID.status")
+
+if [ "$KIND" = lieutenant ]; then
+LIEUTENANT_PROJECTS=""
+idx=1
+while [ "$idx" -lt "${#POS[@]}" ]; do
+  LIEUTENANT_PROJECTS="${LIEUTENANT_PROJECTS}${LIEUTENANT_PROJECTS:+ }${POS[$idx]}"
+  idx=$((idx + 1))
+done
+[ -n "$LIEUTENANT_PROJECTS" ] || { echo "error: --lieutenant requires at least one project" >&2; exit 1; }
+LIEUTENANT_CHARTER=${N1_LIEUTENANT_CHARTER:-"{TASK}"}
+LIEUTENANT_SCOPE=${N1_LIEUTENANT_SCOPE:-${N1_LIEUTENANT_CHARTER:-"{TASK}"}}
+PROJECT_LIST=$(printf '%s\n' "$LIEUTENANT_PROJECTS" | tr ' ' '\n' | sed 's/^/- /')
+cat > "$BRIEF" <<EOF
+You are a lieutenant: a persistent domain supervisor managed by the main numberone. Work on your own; do not wait for a human.
+
+# Charter
+$LIEUTENANT_CHARTER
+
+# Routing scope
+$LIEUTENANT_SCOPE
+
+# Project clones
+$PROJECT_LIST
+
+# Operating model
+You are in an isolated numberone home. The local \`AGENTS.md\` is your job description, and your local \`data/\`, \`state/\`, \`config/\`, and \`projects/\` dirs are yours to operate.
+The projects above are local clones for work you supervise; they are not an exclusive ownership claim.
+Delegate project work to your own ensigns with the normal numberone lifecycle: brief, spawn, status, watcher, steer, teardown, and recovery.
+Do not invent a second delegation system.
+You do not generate your own work.
+Act only on tasks the main numberone routes to you.
+Never start a survey, audit, or "find improvements" sweep on your own initiative; that is not your job and it is unwanted.
+
+# Requests from the main numberone
+You are a numberone in your own home, so an incoming message reaches you in your own chat.
+You must distinguish who it is from, because the answer goes to a different place.
+A request relayed to you by the main numberone (your supervisor) is tagged with a leading \`$N1_FROMFIRST_LABEL\` marker followed by an invisible system separator; this marker is untypable, so a human never produces it.
+When a message carries that marker, do the work, then respond via the STATUS/ESCALATION path below, never only in this chat: the main numberone does not read your chat, so a chat-only reply is lost.
+For a terse result, a status line is the whole answer.
+For a detailed answer (an investigation, a plan, an audit), write it to a doc under your home's \`data/\` and append a status line that points to that doc - the survey-report pattern - so the main numberone is woken and can read it.
+A message with NO marker is the captain typing directly into your pane: treat it as authoritative captain intervention and stay conversational exactly as you would for any captain message; do not force it onto the status path.
+
+# Escalation to main numberone
+Handle routine work yourself.
+Escalate only true captain-relevant outcomes by appending one line:
+   \`echo "{state}: {one short line}" >> $STATUS_FILE\`
+States: working, needs-decision, blocked, done, failed.
+Use this only for material phase changes, a captain decision, a real blocker, a failure, or work ready for review.
+This is also how you return the answer to a marked from-numberone request above.
+Routine internal supervision, heartbeats, retries, and ensign churn stay inside your own home and must not touch that status file.
+
+# Definition of done
+You are persistent by default. Do not exit just because your queue is empty.
+On startup and restart, run normal numberone bootstrap and recovery for your own home, but only to RECONCILE work that is already yours: in-flight ensigns, tracked backlog items, and durable watches recorded in this home.
+When you have no assigned or in-flight work after that reconciliation, go idle and wait silently for the main numberone to route you a task.
+An empty queue is a healthy resting state, not a cue to invent work: never spawn a survey, audit, or any self-directed "find work" task on your own initiative.
+If this charter cannot be carried out, append \`blocked: {why}\` or \`failed: {why}\` to the main status file and stop.
+EOF
+if [ "$LIEUTENANT_CHARTER" = "{TASK}" ]; then
+  echo "scaffolded: $BRIEF (lieutenant charter; replace {TASK})"
+else
+  echo "scaffolded: $BRIEF (lieutenant charter)"
+fi
+exit 0
+fi
+
+REPO=${POS[1]}
+
+if [ "$KIND" = survey ]; then
+cat > "$BRIEF" <<EOF
+You are a ensign: an autonomous worker agent managed by numberone. Work on your own; do not wait for a human.
+
+# Task
+{TASK}
+
+# Setup
+You are in a disposable git worktree of $REPO, at a detached HEAD on a clean default branch.
+This is a SURVEY task: the deliverable is a written report, not a PR.
+The worktree is your laboratory - install, run, edit, and make scratch commits freely; all of it is discarded at teardown.
+The report is the only thing that survives, so anything worth keeping must be in it.
+
+# Rules
+1. Never push to any remote and never open a PR.
+2. Stay inside this worktree; the only files you may write outside it are the report and the status file below.
+3. Use gh-axi for GitHub operations and chrome-devtools-axi for browser operations.
+4. Report status by appending one line:
+   \`echo "{state}: {one short line}" >> $STATUS_FILE\`
+   States: working, needs-decision, blocked, done, failed.
+   Each append wakes numberone, so report sparingly: only phase changes a supervisor
+   would act on and the needs-decision/blocked/done/failed states. No step-by-step
+   FYI progress lines; numberone reads your pane for that.
+5. If you hit the same obstacle twice, append \`blocked: {why}\` and stop; numberone will help.
+6. If a decision belongs to a human (product choices, destructive actions),
+   append \`needs-decision: {summary of options}\` and stop. Number One will reply with the decision.
+
+# Definition of done
+Write your findings to \`$DATA/$ID/report.md\`.
+The report must stand alone: what you did, what you found, the evidence (commands run, output, file:line references), and what you recommend.
+When the report is complete, append \`done: {one-line conclusion}\` to the status file and stop.
+If your findings reveal work that should mission (e.g. you reproduced a bug and the fix is clear), say so in the report; numberone may promote this task in place, and you would then receive mode-specific mission instructions as a follow-up message.
+EOF
+echo "scaffolded: $BRIEF (survey; replace {TASK})"
+exit 0
+fi
+
+# Mission task: shape Setup / Rule 1 / Definition of done by the project's delivery mode.
+# yolo does not affect the brief (it governs numberone's approval behaviour), so discard it.
+read -r MODE _ <<EOF
+$("$N1_ROOT/bin/n1-project-mode.sh" "$REPO")
+EOF
+
+case "$MODE" in
+  direct-PR)
+    SETUP2=""
+    RULE1='1. Never push to the default branch (push only your `fm/'"$ID"'` branch). Never merge a PR.'
+    DOD=$(cat <<EOF
+# Definition of done
+This project delivers **direct-PR**: you raise the PR yourself, without the no-mistakes pipeline.
+The task is complete only when committed on your branch.
+When it is implemented and committed, push your branch and open a PR with \`gh-axi\`, then append \`done: PR {url}\` to the status file and stop.
+Do NOT run /no-mistakes. The captain reviews and merges the PR; numberone relays it.
+EOF
+)
+    ;;
+  local-only)
+    SETUP2=""
+    RULE1="1. Never push to any remote and never open a PR. Work only on your \`fm/$ID\` branch; numberone handles the merge into local \`main\`."
+    DOD=$(cat <<EOF
+# Definition of done
+This project delivers **local-only**: no remote, no PR, no pipeline.
+The task is complete only when committed on your branch \`fm/$ID\`. Do NOT push, do NOT open a PR, do NOT merge.
+Keep your branch a clean fast-forward onto the current default branch - if \`main\` has advanced, rebase onto it so the eventual merge stays a fast-forward.
+When it is implemented and committed, append \`done: ready in branch fm/$ID\` to the status file and stop.
+Number One then reviews your branch diff, the captain approves, and numberone merges it into local \`main\`.
+EOF
+)
+    ;;
+  *)  # no-mistakes (default)
+    SETUP2="
+2. Run \`no-mistakes doctor\`; if it reports the repo is not initialized here, run \`no-mistakes init\`."
+    RULE1='1. Never push to the default branch. Never merge a PR.'
+    DOD=$(cat <<EOF
+# Definition of done
+The task is complete only when committed on your branch.
+When you believe it is complete, append \`done: {summary}\` to the status file and stop.
+Number One will then instruct you to run /no-mistakes to validate and mission a PR.
+
+You drive no-mistakes by responding to its gates, not by implementing fixes.
+Follow no-mistakes' own guidance for the mechanics: it loads when you invoke /no-mistakes, and \`no-mistakes axi run --help\` plus the \`help\` lines in each \`axi\` response are authoritative and version-matched to the installed binary.
+Do not hand-edit, commit, or fix findings yourself while a run is active - the pipeline applies every fix.
+
+Two numberone-specific rules layer on top of that guidance:
+- ask-user findings are not yours to answer: escalate to numberone (rule 6) and stop.
+  When the decision comes back, feed it to the gate with \`no-mistakes axi respond\` and let the pipeline apply it - do not route the question to "the user" or implement the fix yourself.
+- Avoid \`--yes\`: the captain, not you, owns the ask-user decisions it would silently auto-resolve.
+
+After /no-mistakes reports CI green, append \`done: PR {url} checks green\` and stop. You are finished.
+EOF
+)
+    ;;
+esac
+
+cat > "$BRIEF" <<EOF
+You are a ensign: an autonomous worker agent managed by numberone. Work on your own; do not wait for a human.
+
+# Task
+{TASK}
+
+# Setup
+You are in a disposable git worktree of $REPO, at a detached HEAD on a clean default branch.
+
+**Verify isolation before anything else.** Run \`pwd -P\` and \`git rev-parse --show-toplevel\`; both must resolve to the disposable treehouse worktree you were launched in, typically a path under a \`.treehouse/\` pool, not the primary checkout numberone operates from.
+The path check is authoritative: \`git rev-parse --git-dir\` and \`git rev-parse --git-common-dir\` can help inspect the repo, but they do not prove you are outside the primary checkout.
+If the top-level path is the primary checkout or not the worktree you were launched in, STOP - do not branch or commit here - append \`blocked: launched in primary checkout, not an isolated worktree\` to the status file and stop.
+
+1. First action: create your branch: \`git checkout -b fm/$ID\`$SETUP2
+
+# Rules
+$RULE1
+2. Stay inside this worktree; modify nothing outside it.
+3. Use gh-axi for GitHub operations and chrome-devtools-axi for browser operations.
+4. Report status by appending one line:
+   \`echo "{state}: {one short line}" >> $STATUS_FILE\`
+   States: working, needs-decision, blocked, done, failed.
+   Each append wakes numberone, so report sparingly: only phase changes a supervisor
+   would act on (setup done, bug reproduced, fix implemented, validation passed) and the
+   needs-decision/blocked/done/failed states. No step-by-step FYI progress lines;
+   numberone reads your pane for that.
+5. If you hit the same obstacle twice, append \`blocked: {why}\` and stop; numberone will help.
+6. If a decision belongs to a human (product choices, destructive actions, ask-user findings),
+   append \`needs-decision: {summary of options}\` and stop. Number One will reply with the decision.
+
+# Project memory
+If \`AGENTS.md\` or \`CLAUDE.md\` already exists, or if this task produced durable project-intrinsic knowledge, run \`$N1_ROOT/bin/n1-ensure-agents-md.sh .\` in the worktree.
+If this task produced durable project-intrinsic knowledge, record it in \`AGENTS.md\` as part of your change.
+Keep it proportionate: skip \`AGENTS.md\` edits for trivial tasks that produced no durable project knowledge.
+
+$DOD
+EOF
+echo "scaffolded: $BRIEF (mission, mode=$MODE; replace {TASK})"

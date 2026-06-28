@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/lib.sh - shared primitives for firstmate behavior tests.
+# tests/lib.sh - shared primitives for numberone behavior tests.
 #
 # Source this from a test file:
 #   # shellcheck source=tests/lib.sh
@@ -13,17 +13,17 @@
 # and lifecycle assumptions that differ per suite and belong with the tests that
 # own them.
 #
-# ROOT is exported as the firstmate repo root (this file lives in tests/), so a
+# ROOT is exported as the numberone repo root (this file lives in tests/), so a
 # sourcing test can use "$ROOT/bin/..." without recomputing it.
 
-# Idempotent guard: behavior-area helper files (secondmate-helpers.sh,
+# Idempotent guard: behavior-area helper files (lieutenant-helpers.sh,
 # wake-helpers.sh) source this library for ROOT/fail/pass, and the test that
 # includes them may also source it directly. Re-sourcing must not wipe the
 # registered-cleanup array or reset state.
-if [ -n "${FM_TEST_LIB_SOURCED:-}" ]; then
+if [ -n "${N1_TEST_LIB_SOURCED:-}" ]; then
   return 0
 fi
-FM_TEST_LIB_SOURCED=1
+N1_TEST_LIB_SOURCED=1
 
 # Resolve the repo root from this library's own location. Consumed by sourcing
 # test files, not by this library, so it reads as "unused" here.
@@ -48,22 +48,22 @@ pass() {
 # extra teardown (e.g. killing a daemon) should define its own EXIT trap and
 # call fm_test_cleanup from inside it so registered dirs are still removed.
 
-FM_TEST_CLEANUP_DIRS=()
+N1_TEST_CLEANUP_DIRS=()
 
 fm_test_cleanup() {
   local d
-  for d in "${FM_TEST_CLEANUP_DIRS[@]:-}"; do
+  for d in "${N1_TEST_CLEANUP_DIRS[@]:-}"; do
     [ -n "$d" ] && rm -rf "$d"
   done
 }
 
 fm_test_tmproot() {
-  local prefix=${1:-fm-test} root
+  local prefix=${1:-n1-test} root
   root=$(mktemp -d "${TMPDIR:-/tmp}/${prefix}.XXXXXX")
-  if [ "${#FM_TEST_CLEANUP_DIRS[@]}" -eq 0 ]; then
+  if [ "${#N1_TEST_CLEANUP_DIRS[@]}" -eq 0 ]; then
     trap fm_test_cleanup EXIT
   fi
-  FM_TEST_CLEANUP_DIRS+=("$root")
+  N1_TEST_CLEANUP_DIRS+=("$root")
   printf '%s\n' "$root"
 }
 
@@ -109,7 +109,7 @@ fm_git_init_commit() {
   git -C "$dir" init -q
   printf '# %s\n' "$(basename "$dir")" > "$dir/README.md"
   git -C "$dir" add README.md
-  git -C "$dir" -c user.name='Firstmate Tests' -c user.email='tests@example.invalid' commit -qm initial
+  git -C "$dir" -c user.name='Number One Tests' -c user.email='tests@example.invalid' commit -qm initial
 }
 
 # fm_git_add_origin <repo> <bare>: clone <repo> bare into <bare> and register it
@@ -142,19 +142,19 @@ fm_write_meta() {
   done
 }
 
-# fm_write_secondmate_meta <file> <home> [window] [projects]: write the standard
-# kind=secondmate meta block used across the secondmate suites. window defaults
-# to firstmate:fm-<basename-of-home-dir's parent id>? No - window is explicit;
-# defaults to firstmate:fm-domain and projects to alpha to match the common case.
-fm_write_secondmate_meta() {
-  local file=$1 home=$2 window=${3:-firstmate:fm-domain} projects=${4:-alpha}
+# fm_write_lieutenant_meta <file> <home> [window] [projects]: write the standard
+# kind=lieutenant meta block used across the lieutenant suites. window defaults
+# to numberone:n1-<basename-of-home-dir's parent id>? No - window is explicit;
+# defaults to numberone:n1-domain and projects to alpha to match the common case.
+fm_write_lieutenant_meta() {
+  local file=$1 home=$2 window=${3:-numberone:n1-domain} projects=${4:-alpha}
   fm_write_meta "$file" \
     "window=$window" \
     "worktree=$home" \
     "project=$home" \
     "harness=echo" \
-    "kind=secondmate" \
-    "mode=secondmate" \
+    "kind=lieutenant" \
+    "mode=lieutenant" \
     "yolo=off" \
     "home=$home" \
     "projects=$projects"

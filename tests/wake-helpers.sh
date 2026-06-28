@@ -7,24 +7,24 @@
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# fm-wake-drain.sh now calls fm-guard.sh to assert watcher liveness on every
-# drain. fm-guard.sh's first check warns when the firstmate PRIMARY checkout
-# (FM_ROOT) sits on a feature branch; with no override FM_ROOT resolves to the
+# n1-wake-drain.sh now calls n1-guard.sh to assert watcher liveness on every
+# drain. n1-guard.sh's first check warns when the numberone PRIMARY checkout
+# (N1_ROOT) sits on a feature branch; with no override N1_ROOT resolves to the
 # test runner's own checkout, which during validation is on a feature branch, so
 # each drain would emit a spurious worktree-tangle banner. Point the tangle check
 # at a fresh non-git dir to keep it inert across these suites - the same trick the
-# direct fm-guard.sh tests use. A per-call FM_ROOT_OVERRIDE still wins where a
+# direct n1-guard.sh tests use. A per-call N1_ROOT_OVERRIDE still wins where a
 # suite sets its own (e.g. the watcher-lock guard-banner cases).
-if [ -z "${FM_ROOT_OVERRIDE:-}" ]; then
-  FM_ROOT_OVERRIDE="$(fm_test_tmproot fm-wake-tangle-root)"
-  export FM_ROOT_OVERRIDE
+if [ -z "${N1_ROOT_OVERRIDE:-}" ]; then
+  N1_ROOT_OVERRIDE="$(fm_test_tmproot n1-wake-tangle-root)"
+  export N1_ROOT_OVERRIDE
 fi
 
 # append_wake <state> <kind> <key> <payload>: append a wake record to the durable
 # queue in a subshell scoped to <state>, using the production wake library.
 append_wake() {
-  local state=$1 kind=$2 key=$3 payload=$4 lib="$ROOT/bin/fm-wake-lib.sh"
-  FM_STATE_OVERRIDE="$state" bash -c '
+  local state=$1 kind=$2 key=$3 payload=$4 lib="$ROOT/bin/n1-wake-lib.sh"
+  N1_STATE_OVERRIDE="$state" bash -c '
     # shellcheck disable=SC1090,SC1091
     . "$1"
     fm_wake_append "$2" "$3" "$4"
@@ -40,14 +40,14 @@ make_case() {
 #!/usr/bin/env bash
 set -u
 if [ "${1:-}" = "list-windows" ]; then
-  if [ -n "${FM_FAKE_TMUX_WINDOW:-}" ]; then
-    printf '%s\n' "$FM_FAKE_TMUX_WINDOW"
+  if [ -n "${N1_FAKE_TMUX_WINDOW:-}" ]; then
+    printf '%s\n' "$N1_FAKE_TMUX_WINDOW"
   fi
   exit 0
 fi
 if [ "${1:-}" = "capture-pane" ]; then
-  if [ -n "${FM_FAKE_TMUX_CAPTURE:-}" ]; then
-    cat "$FM_FAKE_TMUX_CAPTURE"
+  if [ -n "${N1_FAKE_TMUX_CAPTURE:-}" ]; then
+    cat "$N1_FAKE_TMUX_CAPTURE"
   fi
   exit 0
 fi
@@ -67,17 +67,17 @@ make_supercase() {
 set -u
 case "${1:-}" in
   display-message)
-    [ "${FM_FAKE_TMUX_PANE_ALIVE:-1}" = "1" ] || exit 1
+    [ "${N1_FAKE_TMUX_PANE_ALIVE:-1}" = "1" ] || exit 1
     _print=0
     # Return cursor_y when the format asks for it (pane_input_pending).
     for _a in "$@"; do
-      case "$_a" in *cursor_y*) printf '%s\n' "${FM_FAKE_TMUX_CURSOR_Y:-0}"; exit 0 ;; esac
+      case "$_a" in *cursor_y*) printf '%s\n' "${N1_FAKE_TMUX_CURSOR_Y:-0}"; exit 0 ;; esac
       [ "$_a" = "-p" ] && _print=1
     done
     [ "$_print" = 1 ] && printf 'fakepane\n'
     exit 0 ;;
   list-windows)
-    [ -n "${FM_FAKE_TMUX_WINDOW:-}" ] && printf '%s\n' "$FM_FAKE_TMUX_WINDOW"
+    [ -n "${N1_FAKE_TMUX_WINDOW:-}" ] && printf '%s\n' "$N1_FAKE_TMUX_WINDOW"
     exit 0 ;;
   capture-pane)
     # Honor a single-line band capture (-S N -E M, both non-negative) the way the
@@ -92,36 +92,36 @@ case "${1:-}" in
         *) shift ;;
       esac
     done
-    [ -n "${FM_FAKE_TMUX_CAPTURE:-}" ] || exit 0
+    [ -n "${N1_FAKE_TMUX_CAPTURE:-}" ] || exit 0
     if [ -n "$_S" ] && [ -n "$_E" ]; then
       case "$_S$_E" in
-        *[!0-9]*) cat "$FM_FAKE_TMUX_CAPTURE" 2>/dev/null ;;
-        *) sed -n "$((_S + 1)),$((_E + 1))p" "$FM_FAKE_TMUX_CAPTURE" 2>/dev/null ;;
+        *[!0-9]*) cat "$N1_FAKE_TMUX_CAPTURE" 2>/dev/null ;;
+        *) sed -n "$((_S + 1)),$((_E + 1))p" "$N1_FAKE_TMUX_CAPTURE" 2>/dev/null ;;
       esac
     else
-      cat "$FM_FAKE_TMUX_CAPTURE" 2>/dev/null
+      cat "$N1_FAKE_TMUX_CAPTURE" 2>/dev/null
     fi
     exit 0 ;;
   send-keys)
     while [ "$#" -gt 0 ]; do
       case "$1" in
         -l) shift; [ "$#" -gt 0 ] && {
-          printf '%s\n' "$1" >> "${FM_FAKE_TMUX_SENT:-/dev/null}"
+          printf '%s\n' "$1" >> "${N1_FAKE_TMUX_SENT:-/dev/null}"
           # Reflect sent text into capture so pane_input_pending sees it as
           # pending input (text in the composer).
-          [ -n "${FM_FAKE_TMUX_CAPTURE:-}" ] && printf '%s\n' "$1" >> "$FM_FAKE_TMUX_CAPTURE"
+          [ -n "${N1_FAKE_TMUX_CAPTURE:-}" ] && printf '%s\n' "$1" >> "$N1_FAKE_TMUX_CAPTURE"
         } ;;
         Enter)
           # Optionally swallow Enter (file-based flag) to test the retry path.
-          if [ -n "${FM_FAKE_TMUX_SWALLOW_FILE:-}" ] && [ -f "$FM_FAKE_TMUX_SWALLOW_FILE" ]; then
-            rm -f "$FM_FAKE_TMUX_SWALLOW_FILE"
+          if [ -n "${N1_FAKE_TMUX_SWALLOW_FILE:-}" ] && [ -f "$N1_FAKE_TMUX_SWALLOW_FILE" ]; then
+            rm -f "$N1_FAKE_TMUX_SWALLOW_FILE"
           else
-            printf '[ENTER]\n' >> "${FM_FAKE_TMUX_SENT:-/dev/null}"
+            printf '[ENTER]\n' >> "${N1_FAKE_TMUX_SENT:-/dev/null}"
             # Enter submits: clear the last line (the typed text) from the
             # capture, simulating the composer being cleared on submit.
-            if [ -n "${FM_FAKE_TMUX_CAPTURE:-}" ] && [ -s "$FM_FAKE_TMUX_CAPTURE" ]; then
-              _tmp=$(mktemp 2>/dev/null) || _tmp="${FM_FAKE_TMUX_CAPTURE}.tmp"
-              sed '$d' "$FM_FAKE_TMUX_CAPTURE" > "$_tmp" 2>/dev/null && mv -f "$_tmp" "$FM_FAKE_TMUX_CAPTURE"
+            if [ -n "${N1_FAKE_TMUX_CAPTURE:-}" ] && [ -s "$N1_FAKE_TMUX_CAPTURE" ]; then
+              _tmp=$(mktemp 2>/dev/null) || _tmp="${N1_FAKE_TMUX_CAPTURE}.tmp"
+              sed '$d' "$N1_FAKE_TMUX_CAPTURE" > "$_tmp" 2>/dev/null && mv -f "$_tmp" "$N1_FAKE_TMUX_CAPTURE"
               rm -f "$_tmp" 2>/dev/null
             fi
           fi
@@ -145,7 +145,7 @@ make_bordered_case() {
   cat > "$fakebin/tmux" <<'SH'
 #!/usr/bin/env bash
 set -u
-COMPOSER="${FM_FAKE_COMPOSER:?FM_FAKE_COMPOSER unset}"
+COMPOSER="${N1_FAKE_COMPOSER:?N1_FAKE_COMPOSER unset}"
 case "${1:-}" in
   display-message)
     print=0
@@ -168,15 +168,15 @@ case "${1:-}" in
       shift
     done
     if [ "$is_enter" = 1 ]; then
-      if [ -n "${FM_FAKE_SWALLOW:-}" ] && [ -f "$FM_FAKE_SWALLOW" ]; then
-        [ "${FM_FAKE_PERSIST_SWALLOW:-0}" = 1 ] || rm -f "$FM_FAKE_SWALLOW"
+      if [ -n "${N1_FAKE_SWALLOW:-}" ] && [ -f "$N1_FAKE_SWALLOW" ]; then
+        [ "${N1_FAKE_PERSIST_SWALLOW:-0}" = 1 ] || rm -f "$N1_FAKE_SWALLOW"
       else
-        [ -n "${FM_FAKE_SENT:-}" ] && printf '[ENTER]\n' >> "$FM_FAKE_SENT"
+        [ -n "${N1_FAKE_SENT:-}" ] && printf '[ENTER]\n' >> "$N1_FAKE_SENT"
         printf '│ > │\n' > "$COMPOSER"
       fi
     elif [ "$lit" = 1 ]; then
-      [ "${FM_FAKE_SEND_FAIL:-0}" = 1 ] && exit 1
-      [ -n "${FM_FAKE_SENT:-}" ] && printf '%s\n' "$text" >> "$FM_FAKE_SENT"
+      [ "${N1_FAKE_SEND_FAIL:-0}" = 1 ] && exit 1
+      [ -n "${N1_FAKE_SENT:-}" ] && printf '%s\n' "$text" >> "$N1_FAKE_SENT"
       printf '│ > %s │\n' "$text" > "$COMPOSER"
     fi
     exit 0 ;;

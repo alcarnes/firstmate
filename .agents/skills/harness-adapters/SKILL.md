@@ -1,32 +1,32 @@
 ---
 name: harness-adapters
-description: Agent-only reference for firstmate harness operations. Use before spawning or recovering a crewmate or secondmate, handling a trust dialog, sending a harness-specific skill invocation, interrupting or exiting an agent, resuming an exited agent, or verifying a new harness adapter. Contains verified facts for claude, codex, opencode, and pi.
+description: Agent-only reference for numberone harness operations. Use before spawning or recovering a ensign or lieutenant, handling a trust dialog, sending a harness-specific skill invocation, interrupting or exiting an agent, resuming an exited agent, or verifying a new harness adapter. Contains verified facts for claude, codex, opencode, and pi.
 user-invocable: false
 ---
 
 # harness-adapters
 
-Use this reference before any harness-specific firstmate operation: spawn, recovery, trust-dialog handling, skill invocation, interrupt, exit, resume, or adapter verification.
+Use this reference before any harness-specific numberone operation: spawn, recovery, trust-dialog handling, skill invocation, interrupt, exit, resume, or adapter verification.
 
-Crewmates default to the same harness firstmate is running on unless `config/crew-harness` records an adapter name.
+Ensigns default to the same harness numberone is running on unless `config/crew-harness` records an adapter name.
 The captain may override that file at bootstrap or later; a per-task instruction such as "run this one on codex" overrides it for that dispatch only.
-`default` means mirror firstmate's own harness.
+`default` means mirror numberone's own harness.
 
 Each adapter splits into mechanics and knowledge.
-The mechanics, including launch command, autonomy flag, and turn-end hook, live in `bin/fm-spawn.sh`.
+The mechanics, including launch command, autonomy flag, and turn-end hook, live in `bin/n1-spawn.sh`.
 The supervision knowledge lives here: busy signature, exit command, interrupt, dialogs, resume behavior, skill invocation, and quirks.
 
-Never dispatch a crewmate or secondmate on an unverified adapter.
-If `config/crew-harness` names an unverified adapter, tell the captain and fall back to firstmate's own harness until that adapter is verified.
-If the captain asks for a new harness, propose verifying it first: spawn a trivial supervised task using `fm-spawn`'s raw-launch-command escape hatch, confirm every fact empirically, then record the mechanics in `fm-spawn`, the busy signature in `fm-watch.sh` and `fm-tmux-lib.sh` defaults, any needed `FM_COMPOSER_IDLE_RE` empty-composer override, and the verified knowledge here.
+Never dispatch a ensign or lieutenant on an unverified adapter.
+If `config/crew-harness` names an unverified adapter, tell the captain and fall back to numberone's own harness until that adapter is verified.
+If the captain asks for a new harness, propose verifying it first: spawn a trivial supervised task using `n1-spawn`'s raw-launch-command escape hatch, confirm every fact empirically, then record the mechanics in `n1-spawn`, the busy signature in `n1-watch.sh` and `n1-tmux-lib.sh` defaults, any needed `N1_COMPOSER_IDLE_RE` empty-composer override, and the verified knowledge here.
 
 ## Detection
 
-`bin/fm-harness.sh` prints firstmate's own harness, using verified env markers first and then process ancestry.
-`bin/fm-harness.sh crew` resolves the effective crewmate harness from `config/crew-harness`.
+`bin/n1-harness.sh` prints numberone's own harness, using verified env markers first and then process ancestry.
+`bin/n1-harness.sh crew` resolves the effective ensign harness from `config/crew-harness`.
 On `unknown`, ask the captain instead of guessing.
 A captain override always beats detection.
-When verifying a new adapter, record its env marker and command name in `bin/fm-harness.sh`.
+When verifying a new adapter, record its env marker and command name in `bin/n1-harness.sh`.
 
 For stuck recovery, the target window's harness is recorded as `harness=` in `state/<id>.meta`.
 Use that value for interrupt, exit, resume, and skill-invocation facts.
@@ -52,19 +52,19 @@ Natural language is acceptable if uncertain.
 
 First launch in a fresh worktree, or first ever on a machine, may show a trust or bypass-permissions confirmation.
 After every spawn, peek the pane within about 20 seconds.
-If such a dialog is showing, accept it with `bin/fm-send.sh <window> --key Enter`, or the choice the dialog requires, and verify the brief started processing.
+If such a dialog is showing, accept it with `bin/n1-send.sh <window> --key Enter`, or the choice the dialog requires, and verify the brief started processing.
 
 Claude renders a predicted-next-prompt suggestion as dim/faint text inside an otherwise-empty composer after a turn completes.
 A plain `tmux capture-pane` cannot tell that ghost text apart from typed text.
-Firstmate launches every claude crewmate and secondmate with `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false`, scoped to firstmate-launched agents through `bin/fm-spawn.sh`, so it never touches the captain's global config.
+Number One launches every claude ensign and lieutenant with `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false`, scoped to numberone-launched agents through `bin/n1-spawn.sh`, so it never touches the captain's global config.
 The CLI's `--prompt-suggestions` flag is print/SDK-mode only and does not suppress the interactive composer ghost text, verified empirically on v2.1.186.
-As defense in depth for any pane that flag cannot reach, including the captain's own firstmate composer that away-mode reads, the pane reader in `bin/fm-tmux-lib.sh` captures only the composer line with ANSI styling, drops dim/faint SGR 2 runs, and ignores them, so only normal-intensity typed text counts as pending input.
+As defense in depth for any pane that flag cannot reach, including the captain's own numberone composer that away-mode reads, the pane reader in `bin/n1-tmux-lib.sh` captures only the composer line with ANSI styling, drops dim/faint SGR 2 runs, and ignores them, so only normal-intensity typed text counts as pending input.
 That styled capture is internal to the boolean detector only.
-`fm-peek` and every other human or LLM-facing capture path stays plain `tmux capture-pane` with no escape codes.
+`n1-peek` and every other human or LLM-facing capture path stays plain `tmux capture-pane` with no escape codes.
 
 ## claude-container (VERIFIED)
 
-Same Claude agent as the `claude` adapter, but launched inside a container so an autonomous (`--dangerously-skip-permissions`) crewmate's filesystem reach is bounded to the mounts instead of the whole host. Supervision is identical to `claude`: all the facts below are Claude's, because Claude is what runs inside the container.
+Same Claude agent as the `claude` adapter, but launched inside a container so an autonomous (`--dangerously-skip-permissions`) ensign's filesystem reach is bounded to the mounts instead of the whole host. Supervision is identical to `claude`: all the facts below are Claude's, because Claude is what runs inside the container.
 
 | Fact | Value |
 |---|---|
@@ -73,25 +73,25 @@ Same Claude agent as the `claude` adapter, but launched inside a container so an
 | Interrupt | single Escape |
 | Skill invocation | `/<skill>` (e.g. `/no-mistakes`) |
 
-Mechanics live in `bin/fm-spawn.sh`'s `claude-container)` launch template, which calls `bin/fm-crew-container.sh <worktree> <brief> <turnend>`. That wrapper owns the `docker run` and bind-mounts the worktree, the project's shared git common dir, this home's `state/`, and the task's `data/<id>/` dir at identical absolute paths, then runs `claude --dangerously-skip-permissions` on the brief as the container's foreground process.
+Mechanics live in `bin/n1-spawn.sh`'s `claude-container)` launch template, which calls `bin/n1-crew-container.sh <worktree> <brief> <turnend>`. That wrapper owns the `docker run` and bind-mounts the worktree, the project's shared git common dir, this home's `state/`, and the task's `data/<id>/` dir at identical absolute paths, then runs `claude --dangerously-skip-permissions` on the brief as the container's foreground process.
 
-Because the container runs **attached** (`docker run -it`) as the pane's foreground process, the pane is a transparent passthrough to the container TTY: `fm-send.sh` (steer/interrupt/trust-dialog Enter) and `fm-watch.sh`/`fm-tmux-lib.sh` (busy-signature, ghost-text) all work unchanged. Never launch it detached (`-d`) - that severs the pane↔TTY link and supervision goes blind.
+Because the container runs **attached** (`docker run -it`) as the pane's foreground process, the pane is a transparent passthrough to the container TTY: `n1-send.sh` (steer/interrupt/trust-dialog Enter) and `n1-watch.sh`/`n1-tmux-lib.sh` (busy-signature, ghost-text) all work unchanged. Never launch it detached (`-d`) - that severs the pane↔TTY link and supervision goes blind.
 
-The turn-end Stop hook is installed exactly as for `claude` (the `claude*)` glob in `fm-spawn.sh` matches `claude-container`); it touches the absolute `state/<id>.turn-ended` path, which resolves inside the container because `state/` is mounted at the same path. The `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false` ghost-text control is passed into the container as an env var.
+The turn-end Stop hook is installed exactly as for `claude` (the `claude*)` glob in `n1-spawn.sh` matches `claude-container`); it touches the absolute `state/<id>.turn-ended` path, which resolves inside the container because `state/` is mounted at the same path. The `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false` ghost-text control is passed into the container as an env var.
 
-First-run dialogs (VERIFIED): the wrapper pre-seeds onboarding-complete and per-worktree trust, so the folder-trust dialog is skipped. What remains on every spawn is the **Bypass Permissions warning** - and its default selection is **"1. No, exit"**, so a blind Enter EXITS the crewmate. Accept it by sending the choice, not Enter: peek within ~20s, then `bin/fm-send.sh <window> 2` followed by `bin/fm-send.sh <window> --key Enter` (select "2. Yes, I accept", then confirm). This warning is not persisted by claude, so it reappears each spawn; handle it at every spawn. Crewmate-only: secondmates run plain `claude` in their home, not this adapter. Prerequisites: a built `firstmate-crew` image (`docker/crew/Dockerfile`) and credentials reachable by the container (mounted `~/.claude`/`~/.config/gh`/`~/.gitconfig`, or a `GH_TOKEN` and an in-container `claude` login if the host keeps auth in the macOS Keychain).
+First-run dialogs (VERIFIED): the wrapper pre-seeds onboarding-complete and per-worktree trust, so the folder-trust dialog is skipped. What remains on every spawn is the **Bypass Permissions warning** - and its default selection is **"1. No, exit"**, so a blind Enter EXITS the ensign. Accept it by sending the choice, not Enter: peek within ~20s, then `bin/n1-send.sh <window> 2` followed by `bin/n1-send.sh <window> --key Enter` (select "2. Yes, I accept", then confirm). This warning is not persisted by claude, so it reappears each spawn; handle it at every spawn. Ensign-only: lieutenants run plain `claude` in their home, not this adapter. Prerequisites: a built `numberone-crew` image (`docker/crew/Dockerfile`) and credentials reachable by the container (mounted `~/.claude`/`~/.config/gh`/`~/.gitconfig`, or a `GH_TOKEN` and an in-container `claude` login if the host keeps auth in the macOS Keychain).
 
 ## codex (VERIFIED 2026-06-11, codex-cli 0.139.0)
 
 | Fact | Value |
 |---|---|
 | Busy-pane signature | `esc to interrupt` (shown as `• Working (Xs • esc to interrupt)`) |
-| Exit command | `/quit` (slash popup needs about 1 second between text and Enter; `fm-send` handles it) |
+| Exit command | `/quit` (slash popup needs about 1 second between text and Enter; `n1-send` handles it) |
 | Interrupt | single Escape |
 | Skill invocation | `$<skill>` (e.g. `$no-mistakes`); `/<skill>` is claude-only and codex rejects it as "Unrecognized command" |
 
 A `$<skill>` invocation opens a `$`-autocomplete (skill) popup, the same hazard as the `/` slash popup: submitting too fast lets the popup swallow the Enter, so the invocation never lands.
-`fm-send` handles it the same way it handles `/` - it gives the popup a longer settle (1.2s) between typing and the first Enter, with `fm_tmux_submit_core`'s retried Enter as the safety net - but the `$` settle is scoped to `harness=codex`, read from the target's `state/<id>.meta`.
+`n1-send` handles it the same way it handles `/` - it gives the popup a longer settle (1.2s) between typing and the first Enter, with `fm_tmux_submit_core`'s retried Enter as the safety net - but the `$` settle is scoped to `harness=codex`, read from the target's `state/<id>.meta`.
 That scope matters because, unlike `/`, a leading `$` commonly starts ordinary text (`$5/month`, `$HOME`), so a universal `$` rule would needlessly slow plain steers to claude/opencode/pi; only a codex target receiving a `$...` message gets the popup-settle.
 An explicit `session:window` target has no meta, so its harness is unknown and treated as non-codex (the safe fast-path default).
 This is why the validation trigger (`$no-mistakes`) to a codex crew now lands on the first Enter instead of biting the popup.
@@ -114,7 +114,7 @@ The session id is printed on quit.
 No trust dialog.
 Opencode can auto-upgrade itself in the background and the running TUI can exit mid-task, observed live from 1.15.7 to 1.17.3.
 If a pane shows the exit banner, relaunch with `--continue` to resume the session.
-`--prompt` does not auto-submit alongside `--continue`, so send the next instruction via `fm-send` once the TUI is up.
+`--prompt` does not auto-submit alongside `--continue`, so send the next instruction via `n1-send` once the TUI is up.
 
 ## pi (VERIFIED 2026-06-11)
 
@@ -124,14 +124,14 @@ If a pane shows the exit banner, relaunch with `--continue` to resume the sessio
 | Exit command | `/quit` |
 | Interrupt | single Escape |
 
-Pi has no permission system, so crewmates are always autonomous.
+Pi has no permission system, so ensigns are always autonomous.
 Keep the brief as one positional argument.
-Multiple positional args become separate queued messages; `fm-spawn`'s template already does this correctly.
+Multiple positional args become separate queued messages; `n1-spawn`'s template already does this correctly.
 
 Project trust dialog can appear on the first pi run in any not-yet-trusted directory, observed even on clean worktrees.
 Accept with Enter.
 The decision persists per path in `~/.pi/agent/trust.json`, so later spawns in the same worktree slot skip it.
 
-`fm-spawn` keeps the turn-end extension in `state/`, outside the worktree, because project-local extension files make the trust gate strictly worse and pollute the project.
+`n1-spawn` keeps the turn-end extension in `state/`, outside the worktree, because project-local extension files make the trust gate strictly worse and pollute the project.
 The extension must listen for pi's `turn_end` event, not `agent_end`, so the watcher wakes after each completed turn instead of only when the whole agent run exits.
 Pi sets `PI_CODING_AGENT=true` for its children; this is its harness-detection env marker.
