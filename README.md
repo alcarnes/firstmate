@@ -59,7 +59,7 @@ The Number One detects and offers to install everything else.
 
 ```sh
 gh auth login
-git clone https://github.com/kunchenguid/numberone
+git clone https://github.com/alcarnes/numberone
 cd numberone && claude   # launch your harness here; AGENTS.md takes over
 ```
 
